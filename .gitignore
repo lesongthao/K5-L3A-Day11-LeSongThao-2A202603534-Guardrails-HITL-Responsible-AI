@@ -207,3 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 template-codelabs
+
+# Local AI workflow evidence (may contain provider diagnostics).
+.runs/

@@ -10,6 +10,9 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
+
+from guardrails.output_guardrails import content_filter
 
 
 def default_audit_log_path() -> str:
@@ -37,11 +40,13 @@ class AuditLogPlugin:
         Returns:
             Key lưu trữ dùng để tra cứu khi hoàn thành yêu cầu.
         """
-        key = request_id or f"{user_id}_{time.time()}"
+        key = request_id or uuid4().hex
+        if key in self._open:
+            raise ValueError("request_id already in use")
         self._open[key] = {
-            "start_time": time.time(),
+            "start_time": time.perf_counter(),
             "user_id": user_id,
-            "input_text": text,
+            "input_text": content_filter(text)["redacted"],
             "timestamp": utc_now_iso(),
         }
         return key
@@ -67,21 +72,27 @@ class AuditLogPlugin:
         Returns:
             Bản ghi nhật ký đã được thêm vào danh sách logs.
         """
-        key = request_id or user_id
+        matches = [key for key, value in self._open.items() if value["user_id"] == user_id]
+        if request_id is None and len(matches) != 1:
+            raise ValueError("request_id required when no unique pending request exists")
+        key = request_id or matches[0]
+        pending = self._open.get(key)
+        if pending is None or pending["user_id"] != user_id:
+            raise ValueError("request_id does not match an open request for this user")
         start_info = self._open.pop(key, None)
 
         latency_ms = 0.0
         input_text = ""
         if start_info:
-            latency_ms = (time.time() - start_info["start_time"]) * 1000
+            latency_ms = (time.perf_counter() - start_info["start_time"]) * 1000
             input_text = start_info.get("input_text", "")
 
         log_entry = {
-            "request_id": request_id,
+            "request_id": key,
             "user_id": user_id,
             "timestamp": utc_now_iso(),
             "input": input_text,
-            "output": text,
+            "output": content_filter(text)["redacted"],
             "blocked": blocked,
             "layer": layer,
             "latency_ms": round(latency_ms, 2),

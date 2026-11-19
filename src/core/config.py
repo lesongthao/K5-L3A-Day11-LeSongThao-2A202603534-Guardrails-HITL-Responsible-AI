@@ -104,8 +104,9 @@ def get_blue_provider() -> str:
 
 
 def get_blue_model() -> str:
-    # Hard-locked; env cannot override for the graded Blue Team path.
-    return BLUE_MODEL
+    # Mặc định giữ model đề bài. Override chỉ dùng khi người dùng cho phép,
+    # phải công khai trong metadata; không tự coi là đáp ứng rubric model.
+    return os.environ.get("BLUE_MODEL_OVERRIDE", "").strip() or BLUE_MODEL
 
 
 def get_openrouter_api_key() -> str:
@@ -240,7 +241,9 @@ def setup_api_key():
         os.environ["OPENROUTER_API_KEY"] = input(
             "Enter OpenRouter API Key (Blue): "
         ).strip()
-    print(f"Blue  — {blue_provider_label()}  [LOCKED]")
+    print(f"Blue  — {blue_provider_label()}  [" + (
+        "LAB MODEL" if get_blue_model() == BLUE_MODEL else "USER-APPROVED ALTERNATIVE; COACH ACCEPTANCE PENDING"
+    ) + "]")
 
     red = get_red_provider()
     model = get_red_model()

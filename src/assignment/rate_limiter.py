@@ -17,6 +17,10 @@ class RateLimitPlugin(base_plugin.BasePlugin):
     """Block users who exceed max_requests within window_seconds."""
 
     def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+        if type(max_requests) is not int or max_requests < 1:
+            raise ValueError("max_requests must be a positive integer")
+        if type(window_seconds) is not int or window_seconds < 1:
+            raise ValueError("window_seconds must be a positive integer")
         super().__init__(name="rate_limiter")
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -42,7 +46,7 @@ class RateLimitPlugin(base_plugin.BasePlugin):
         """
         self.total_count += 1
         user_id = getattr(invocation_context, "user_id", None) or "anonymous"
-        now = time.time()
+        now = time.monotonic()
         window = self.user_windows[user_id]
 
         # 1. Loại bỏ các mốc thời gian đã nằm ngoài cửa sổ trượt (now - window_seconds)

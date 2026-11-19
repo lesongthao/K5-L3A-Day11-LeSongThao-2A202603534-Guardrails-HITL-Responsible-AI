@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -89,21 +90,25 @@ async def part4_attacks():
 
     from agents.agent import create_red_agent_default, test_agent
     from agents.guards_agent import create_red_agent_advance
-    from attacks.attacks import run_attacks, save_attack_results
+    from attacks.attacks import run_attacks, save_attack_results, write_run_attack_json
 
     red_default, red_default_runner = create_red_agent_default()
-    await test_agent(red_default, red_default_runner)
 
     print("\n--- Attacks on Red ---")
     unsafe_results = await run_attacks(
-        red_default, red_default_runner, target_name="red_default"
+        red_default, red_default_runner, target_name="red_default", save_json=False
     )
 
     print("\n--- Attacks on Red Advance (bonus B2 tối đa +10 nếu LEAKED; chọn 1) ---")
     red_advance, red_advance_runner = create_red_agent_advance()
     guards_results = await run_attacks(
-        red_advance, red_advance_runner, target_name="red_advance"
+        red_advance, red_advance_runner, target_name="red_advance", save_json=False
     )
+
+    if any(row.get("error") for row in unsafe_results + guards_results):
+        raise RuntimeError("CP4 API errors: previous submission artifacts preserved; inspect terminal diagnostics.")
+    write_run_attack_json(unsafe_results, target_name="red_default")
+    write_run_attack_json(guards_results, target_name="red_advance")
 
     save_attack_results(
         unsafe_results=unsafe_results,
@@ -134,10 +139,10 @@ async def part4_attacks():
 
 
 async def main(parts=None):
-    setup_api_key()
-
     if parts is None:
         parts = [2, 3, 4]  # Core: CP2 → CP3 → CP4
+    if any(part in (3, 4) for part in parts):
+        setup_api_key()
 
     for part in parts:
         if part == 2:
@@ -155,6 +160,10 @@ async def main(parts=None):
 
 
 if __name__ == "__main__":
+    # Windows có thể dùng cp1252 khi stdout được chuyển vào log.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", line_buffering=True)
     parser = argparse.ArgumentParser(
         description=(
             "Lab 11: Guardrails / HITL / Red Team — "
@@ -167,7 +176,10 @@ if __name__ == "__main__":
         choices=[2, 3, 4],
         help="2=CP2 guardrails · 3=CP3 suite · 4=CP4 red-team",
     )
+    parser.add_argument("--blue-model", help="Model Blue thay thế do người dùng cho phép; metadata ghi rõ ngoại lệ rubric")
     args = parser.parse_args()
+    if args.blue_model:
+        os.environ["BLUE_MODEL_OVERRIDE"] = args.blue_model
 
     if args.part:
         asyncio.run(main(parts=[args.part]))

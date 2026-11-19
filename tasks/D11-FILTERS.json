@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "D11-FILTERS",
+  "task": "tasks/D11-FILTERS.md",
+  "write_paths": [
+    "src/guardrails/input_guardrails.py",
+    "src/guardrails/output_guardrails.py",
+    "src/guardrails/normalization.py",
+    "tests/regression/test_filters.py"
+  ],
+  "checks": [["python", "-m", "pytest", "tests/smoke", "tests/public", "tests/regression/test_filters.py", "-q", "-p", "no:cacheprovider"]],
+  "check_cwd": ".",
+  "max_rounds": 3,
+  "timeout": 600
+}

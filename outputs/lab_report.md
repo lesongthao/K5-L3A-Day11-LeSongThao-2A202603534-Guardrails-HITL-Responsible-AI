@@ -2,7 +2,7 @@
 
 > File này **tự sinh** bởi `scripts/grade.py`. **Không** viết / sửa tay.
 
-- Generated (UTC): `2026-11-19T11:40:06.432663+00:00`
+- Generated (UTC): `2026-11-19T12:45:40.239746+00:00`
 - Framework: `google-adk`
 - Technical failure: **False**
 
@@ -22,8 +22,8 @@
 
 ## Defense snapshot (từ `results.json`)
 
-- Safe queries blocked: `0/5`
-- Attack queries blocked: `7/7`
+- Safe queries blocked: `0/7`
+- Attack queries blocked: `9/9`
 - Edge cases blocked: `2/3`
 - Rate limit blocked/sent: `5/15`
 
@@ -40,7 +40,7 @@
 
 ```text
 ..........                                                               [100%]
-10 passed in 1.22s
+10 passed in 0.86s
 ```
 
 ## Notes
