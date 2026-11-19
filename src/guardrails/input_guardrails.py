@@ -11,7 +11,13 @@ Status convention (không dùng True/False mơ hồ):
 from __future__ import annotations
 
 import re
+import sys
+from pathlib import Path
 from typing import Literal
+
+_SRC_DIR = Path(__file__).resolve().parents[1]
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from google.genai import types
 from google.adk.plugins import base_plugin
@@ -43,22 +49,41 @@ InputStatus = Literal["ALLOW", "BLOCK"]
 # ============================================================
 
 def detect_injection(user_input: str) -> InputStatus:
-    """Detect prompt injection patterns in user input.
+    """Phát hiện các mẫu tấn công chèn lệnh (Prompt Injection) trong tin nhắn người dùng.
+
+    Hàm chuẩn hóa các ký tự Unicode ẩn (Zero-width spaces, invisible formatting)
+    và quét qua các biểu thức chính quy (Regex) đặc trưng của tấn công vượt rào (Jailbreak).
 
     Args:
-        user_input: The user's message
+        user_input: Chuỗi văn bản người dùng nhập vào.
 
     Returns:
-        ``"BLOCK"`` if injection detected (chặn), ``"ALLOW"`` otherwise (cho qua).
+        "BLOCK" nếu phát hiện dấu hiệu tấn công (chặn), ngược lại "ALLOW" (cho qua).
     """
+    if not user_input or not user_input.strip():
+        return "BLOCK"
+
+    # Chuẩn hóa Unicode: loại bỏ các ký tự tàng hình (Zero-width characters)
+    # như \u200b (Zero-width space), \u200c, \u200d, \ufeff (Byte Order Mark), v.v.
+    cleaned_input = re.sub(r"[\u200b-\u200f\u202a-\u202e\ufeff\u00ad]", "", user_input)
+    # Chuẩn hóa khoảng trắng dư thừa
+    normalized_input = " ".join(cleaned_input.split())
+
     INJECTION_PATTERNS = [
-        # TODO: Add at least 5 regex patterns
-        # Example:
-        # r"ignore (all )?(previous|above) instructions",
+        r"ignore\s+(all\s+)?(previous|above|prior)\s+instructions?",
+        r"disregard\s+(all\s+)?(previous|prior|above)\s+instructions?",
+        r"you\s+are\s+now\b",
+        r"system\s+prompt\b",
+        r"reveal\s+(your\s+|the\s+)?(instructions?|system\s+prompt|prompt|password|secrets?|config)",
+        r"pretend\s+you\s+are\b",
+        r"act\s+as\s+(a\s+|an\s+)?unrestricted\b",
+        r"bypass\s+(all\s+)?(safety|guardrails?|filters?)",
+        r"bỏ\s+qua\s+(mọi\s+)?hướng\s+dẫn",
+        r"tiết\s+lộ\s+(mật\s+khẩu|cấu\s+hình|prompt)",
     ]
 
     for pattern in INJECTION_PATTERNS:
-        if re.search(pattern, user_input, re.IGNORECASE):
+        if re.search(pattern, normalized_input, re.IGNORECASE):
             return "BLOCK"
     return "ALLOW"
 
@@ -75,23 +100,38 @@ def detect_injection(user_input: str) -> InputStatus:
 # ============================================================
 
 def topic_filter(user_input: str) -> InputStatus:
-    """Decide whether the input is on-topic for VinBank.
+    """Kiểm tra xem câu hỏi có thuộc phạm vi dịch vụ ngân hàng VinBank hay không.
 
     Args:
-        user_input: The user's message
+        user_input: Chuỗi văn bản người dùng nhập vào.
 
     Returns:
-        ``"BLOCK"`` = chặn (off-topic hoặc topic cấm).
-        ``"ALLOW"`` = cho qua (câu banking hợp lệ).
+        "BLOCK" = chặn (lạc đề hoặc rơi vào chủ đề cấm).
+        "ALLOW" = cho qua (câu hỏi liên quan đến nghiệp vụ ngân hàng hợp lệ).
     """
+    if not user_input or not user_input.strip():
+        return "BLOCK"
+
     input_lower = user_input.lower()
 
-    # TODO: Implement logic:
-    # 1. If input contains any blocked topic -> return "BLOCK"
-    # 2. If input doesn't contain any allowed topic -> return "BLOCK"
-    # 3. Otherwise -> return "ALLOW"
+    # 1. Chặn ngay nếu chứa chủ đề cấm (Bạo lực, vũ khí, ma túy, đánh bạc, hack...)
+    for topic in BLOCKED_TOPICS:
+        pattern = r"\b" + re.escape(topic) + r"\b" if " " not in topic else re.escape(topic)
+        if re.search(pattern, input_lower):
+            return "BLOCK"
 
-    pass  # Replace with your implementation
+    # 2. Kiểm tra câu hỏi có chứa ít nhất một chủ đề ngân hàng được phép hay không
+    has_allowed_topic = False
+    for topic in ALLOWED_TOPICS:
+        pattern = r"\b" + re.escape(topic) + r"\b" if " " not in topic else re.escape(topic)
+        if re.search(pattern, input_lower):
+            has_allowed_topic = True
+            break
+
+    if not has_allowed_topic:
+        return "BLOCK"
+
+    return "ALLOW"
 
 
 # ============================================================
@@ -135,23 +175,35 @@ class InputGuardrailPlugin(base_plugin.BasePlugin):
         invocation_context: InvocationContext,
         user_message: types.Content,
     ) -> types.Content | None:
-        """Check user message before sending to the agent.
+        """Kiểm tra tin nhắn người dùng trước khi gửi tới mô hình LLM.
+
+        Args:
+            invocation_context: Ngữ cảnh gọi của agent ADK.
+            user_message: Nội dung tin nhắn người dùng (kiểu types.Content).
 
         Returns:
-            None if message is safe (let it through),
-            types.Content if message is blocked (return replacement)
+            None nếu tin nhắn an toàn (cho phép tiếp tục xử lý),
+            types.Content nếu tin nhắn bị chặn (trả về câu từ chối).
         """
         self.total_count += 1
         text = self._extract_text(user_message)
 
-        # TODO: Implement logic:
-        # 1. Call detect_injection(text)
-        #    - If "BLOCK": increment blocked_count, return self._block_response("...")
-        # 2. Call topic_filter(text)
-        #    - If "BLOCK": increment blocked_count, return self._block_response("...")
-        # 3. If both return "ALLOW": return None (let message through)
+        # 1. Kiểm tra Prompt Injection / Jailbreak
+        if detect_injection(text) == "BLOCK":
+            self.blocked_count += 1
+            return self._block_response(
+                "I cannot process that request. As a VinBank assistant, I can only help with banking-related questions."
+            )
 
-        pass  # Replace with your implementation
+        # 2. Kiểm tra chủ đề ngân hàng hợp lệ
+        if topic_filter(text) == "BLOCK":
+            self.blocked_count += 1
+            return self._block_response(
+                "I can only help with banking-related questions. Please ask about accounts, transactions, savings, or loans."
+            )
+
+        # 3. An toàn -> Cho qua (None)
+        return None
 
 
 # ============================================================

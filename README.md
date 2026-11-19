@@ -1,6 +1,12 @@
 # Day 11 — Controlled Agent Security (2026)
 
-> 👤 **Hình thức:** bài tập **cá nhân** (1 người / 1 MSSV).  
+> 👤 **Thông tin học viên:**
+> - **Họ và tên:** Lê Sông Thao
+> - **Mã học viên (MSSV):** 2A202603534
+> - **Lớp:** Khóa 5 Level 3 (K5-L3A) — VinUni & Vingroup
+> - **Email:** sirothao123@gmail.com | 26ai.thaols@vinuni.edu.vn
+> - **Trạng thái bài nộp:** Đã hoàn thành toàn bộ Checkpoint 1 → 5 (10/10 public tests pass, 39/39 smoke tests pass, Packaging & Schema valid 100%, 4/5 leaks Red Default đạt Bonus B1).
+
 > 🎯 **Mục tiêu:** đóng vai **Blue Team** để học cách xây Guardrails phòng thủ, rồi đóng vai **Red Team** để tấn công agent **Red** hoặc **Red Advance**.  
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).
 

@@ -5,7 +5,13 @@ Checkpoint 2 — Output Guardrails
   - LLM-as-Judge                          ← optional (không chấm)
 """
 import re
+import sys
 import textwrap
+from pathlib import Path
+
+_SRC_DIR = Path(__file__).resolve().parents[1]
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from google.genai import types
 from google.adk.agents import llm_agent
@@ -28,29 +34,36 @@ from core.utils import chat_with_agent
 # ============================================================
 
 def content_filter(response: str) -> dict:
-    """Filter response for PII, secrets, and harmful content.
+    """Lọc câu trả lời để che giấu PII (thông tin cá nhân), API keys, mật khẩu và dữ liệu bí mật.
 
     Args:
-        response: The LLM's response text
+        response: Chuỗi văn bản phản hồi từ LLM.
 
     Returns:
-        dict with 'safe', 'issues', and 'redacted' keys
+        dict chứa:
+            - 'safe': True nếu không phát hiện thông tin nhạy cảm, False nếu có.
+            - 'issues': Danh sách mô tả các vấn đề / mẫu vi phạm tìm thấy.
+            - 'redacted': Chuỗi văn bản đã được che các thông tin nhạy cảm bằng [REDACTED].
     """
+    if not response:
+        return {"safe": True, "issues": [], "redacted": ""}
+
     issues = []
     redacted = response
 
-    # PII patterns to check
+    # Các mẫu biểu thức chính quy (Regex) quét PII và Secret
     PII_PATTERNS = {
-        # TODO: Add regex patterns for:
-        # - VN phone number: r"0\d{9,10}"
-        # - Email: r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}"
-        # - National ID (CMND/CCCD): r"\b\d{9}\b|\b\d{12}\b"
-        # - API key pattern: r"sk-[a-zA-Z0-9-]+"
-        # - Password pattern: r"password\s*[:=]\s*\S+"
+        "vn_phone": r"(?:\+84|0)[3|5|7|8|9]\d{8}\b|0\d{9,10}\b",
+        "email": r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}",
+        "national_id": r"\b\d{9}\b|\b\d{12}\b",
+        "api_key": r"sk-[a-zA-Z0-9_-]+",
+        "password_kv": r"password\s*[:=]\s*\S+",
+        "admin_password": r"\badmin123\b",
+        "db_host": r"\bdb\.vinbank\.internal(?::\d+)?\b",
     }
 
     for name, pattern in PII_PATTERNS.items():
-        matches = re.findall(pattern, response, re.IGNORECASE)
+        matches = re.findall(pattern, redacted, re.IGNORECASE)
         if matches:
             issues.append(f"{name}: {len(matches)} found")
             redacted = re.sub(pattern, "[REDACTED]", redacted, flags=re.IGNORECASE)
@@ -165,23 +178,36 @@ class OutputGuardrailPlugin(base_plugin.BasePlugin):
         callback_context,
         llm_response,
     ):
-        """Check LLM response before sending to user."""
+        """Kiểm tra phản hồi của mô hình LLM trước khi gửi tới người dùng."""
         self.total_count += 1
 
         response_text = self._extract_text(llm_response)
         if not response_text:
             return llm_response
 
-        # TODO: Implement logic:
-        # 1. Call content_filter(response_text)
-        #    - If issues found: replace llm_response.content with redacted version
-        #    - Increment self.redacted_count
-        # 2. If use_llm_judge: call llm_safety_check(response_text)
-        #    - If unsafe: replace llm_response.content with a safe message
-        #    - Increment self.blocked_count
-        # 3. Return llm_response (possibly modified)
+        # 1. Quét PII và Secret thông qua content_filter
+        filter_result = content_filter(response_text)
+        if not filter_result["safe"]:
+            self.redacted_count += 1
+            response_text = filter_result["redacted"]
+            if hasattr(llm_response, "content") and llm_response.content:
+                llm_response.content = types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text=response_text)],
+                )
 
-        return llm_response  # TODO: modify if needed
+        # 2. Nếu bật LLM-as-Judge, đánh giá độ an toàn
+        if self.use_llm_judge:
+            judge_res = await llm_safety_check(response_text)
+            if not judge_res.get("safe", True):
+                self.blocked_count += 1
+                if hasattr(llm_response, "content") and llm_response.content:
+                    llm_response.content = types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="I cannot fulfill this request due to safety policies.")],
+                    )
+
+        return llm_response
 
 
 # ============================================================
