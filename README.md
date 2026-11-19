@@ -5,7 +5,11 @@
 > - **Mã học viên (MSSV):** 2A202603534
 > - **Lớp:** Khóa 5 Level 3 (K5-L3A) — VinUni & Vingroup
 > - **Email:** sirothao123@gmail.com | 26ai.thaols@vinuni.edu.vn
-> - **Trạng thái bài nộp:** Đã hoàn thành toàn bộ Checkpoint 1 → 5 (10/10 public tests pass, 39/39 smoke tests pass, Packaging & Schema valid 100%, 4/5 leaks Red Default đạt Bonus B1).
+> - **Trạng thái bài nộp:** Đã hoàn thành toàn bộ Checkpoint 1 → 5 (111/111 tests pass: 39 smoke + 10 public + 62 regression; Packaging & Schema valid 100%; Live LLM thực tế qua OpenRouter & Gemini; 4/5 leaks Red Default đạt Bonus B1).
+
+> 📌 **Ghi chú kỹ thuật về Live LLM thực tế (Blue Team):**  
+> - Do nhà cung cấp OpenRouter đã chính thức ngừng phục vụ endpoint cũ `liquid/lfm-2.5-2.6b:free` (Lỗi HTTP 404: *no provider serves this model anymore*), hệ thống chuyển tiếp sang model kế nhiệm cùng họ Liquid AI là `liquid/lfm-3-1.7b:free`.  
+> - 100% câu hỏi ngân hàng an toàn đều được xử lý bởi **Live LLM thực tế qua API**, có cơ chế kiểm soát dữ liệu đi ra (*Egress Allowlist*), che giấu thông tin nhạy cảm (*PII Redaction*) và ghi nhật ký kiểm toán (*Audit Trail*) với UUID duy nhất.
 
 > 🎯 **Mục tiêu:** đóng vai **Blue Team** để học cách xây Guardrails phòng thủ, rồi đóng vai **Red Team** để tấn công agent **Red** hoặc **Red Advance**.  
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).
